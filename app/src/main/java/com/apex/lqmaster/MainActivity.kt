@@ -4,9 +4,10 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.view.WindowInsets
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,6 +31,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import rikka.shizuku.Shizuku
 
 val DarkBg = Color(0xFF000000)
@@ -42,7 +46,6 @@ val GreenColor = Color(0xFF4CAF50)
 
 class MainActivity : ComponentActivity() {
     
-    // Lắng nghe kết quả xin quyền thông báo
     private val requestNotifPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { _ -> }
@@ -51,19 +54,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         
-        // Ẩn thanh trạng thái
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.hide(WindowInsets.Type.systemBars())
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
-                android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            )
+        // Fix crash UI toàn màn hình chuẩn Android 14
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).let { controller ->
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
-        // BẮT BUỘC: Xin quyền thông báo trên Android 13+ để không bị văng Foreground Service
+        // Xin quyền thông báo (Bắt buộc cho Android 13+ để không crash Service)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
                 != PackageManager.PERMISSION_GRANTED) {
@@ -83,13 +81,23 @@ class MainActivity : ComponentActivity() {
 fun App() {
     val context = LocalContext.current
     var hasShizuku by remember { mutableStateOf(false) }
+    var isShizukuInstalled by remember { mutableStateOf(false) }
     var optimizing by remember { mutableStateOf(false) }
     var isLocked by remember { mutableStateOf(false) }
 
     fun checkStatus() {
-        // Bọc try-catch tuyệt đối để không crash nếu chưa cài Shizuku
+        // Kiểm tra xem Shizuku có được cài không
+        isShizukuInstalled = try {
+            context.packageManager.getPackageInfo("moe.shizuku.privileged.api", 0) != null
+        } catch (e: Exception) {
+            false
+        }
+
+        // Bọc try-catch 100% để không bao giờ crash
         hasShizuku = try {
-            Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            if (isShizukuInstalled) {
+                Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            } else false
         } catch (e: Throwable) { 
             false 
         }
@@ -146,9 +154,15 @@ fun App() {
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg)
                 .clickable { 
-                    if (!hasShizuku) { 
+                    if (!isShizukuInstalled) {
+                        // Mở CH Play nếu chưa cài
+                        try {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api")))
+                        } catch (_: Exception) {}
+                    } else if (!hasShizuku) {
+                        // Xin quyền nếu đã cài
                         try { Shizuku.requestPermission(1001) } catch (e: Throwable) {} 
-                    } 
+                    }
                 }
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -160,7 +174,11 @@ fun App() {
             Column {
                 Text("Cách sử dụng shizuku android 11+", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
-                    if (hasShizuku) "Đã cấp quyền Shizuku" else "Android 11+ phải có quyền Shizuku để can thiệp files",
+                    text = when {
+                        !isShizukuInstalled -> "Chưa cài đặt. Bấm để tải trên CH Play"
+                        !hasShizuku -> "Đã cài. Bấm để cấp quyền"
+                        else -> "Đã cấp quyền Shizuku"
+                    },
                     color = if (hasShizuku) GreenColor else TextGray, fontSize = 12.sp
                 )
             }
