@@ -14,9 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -40,12 +38,9 @@ import androidx.core.view.WindowInsetsControllerCompat
 import rikka.shizuku.Shizuku
 
 val DarkBg     = Color(0xFF000000)
-val CardBg     = Color(0xFF1C1C1E)
 val PurpleBtn  = Color(0xFFD0BCFF)
 val TextWhite  = Color(0xFFEEEEEE)
 val TextGray   = Color(0xFFAAAAAA)
-val RedColor   = Color(0xFFFF5252)
-val GreenColor = Color(0xFF4CAF50)
 
 class MainActivity : ComponentActivity() {
     private val requestNotifPermission = registerForActivityResult(
@@ -70,7 +65,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(background = DarkBg, surface = CardBg)) {
+            MaterialTheme(colorScheme = darkColorScheme(background = DarkBg)) {
                 App()
             }
         }
@@ -83,7 +78,6 @@ fun App() {
     var hasShizuku by remember { mutableStateOf(false) }
     var isShizukuInstalled by remember { mutableStateOf(false) }
     var isLocked by remember { mutableStateOf(false) }
-    var selectedMode by remember { mutableStateOf("low") }
 
     val progress by ProgressState.progress.collectAsState()
     val message by ProgressState.message.collectAsState()
@@ -109,71 +103,47 @@ fun App() {
     LaunchedEffect(Unit) { checkStatus() }
     LaunchedEffect(isRunning) { if (!isRunning) checkStatus() }
 
-    fun runAction(action: String) {
+    fun runOptimize() {
         ProgressState.start()
-        ProgressState.update(0, "Đang chuẩn bị...")
         try {
-            val i = Intent(context, OptimizerService::class.java).apply {
-                this.action = action
-                putExtra("MODE", selectedMode)
-            }
+            val i = Intent(context, OptimizerService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(i)
             else context.startService(i)
         } catch (_: Exception) { ProgressState.reset() }
     }
 
     Column(
-        Modifier.fillMaxSize().background(DarkBg).verticalScroll(rememberScrollState()).padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        Modifier.fillMaxSize().background(DarkBg).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Text("LQ MASTER OPTIMIZER", color = TextWhite, fontWeight = FontWeight.Black, fontSize = 24.sp)
-        Text("Chỉ can thiệp file cấu hình LQ", color = TextGray, fontSize = 12.sp)
-
-        Spacer(Modifier.height(20.dp))
-
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(
-                Triple("low", "Siêu Mượt", "Tắt hết"),
-                Triple("balanced", "Cân Bằng", "Vừa phải"),
-                Triple("high", "Đẹp", "Chi tiết")
-            ).forEach { (id, title, desc) ->
-                val sel = selectedMode == id
-                Column(
-                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
-                        .background(if (sel) PurpleBtn.copy(alpha = 0.2f) else CardBg)
-                        .border(if (sel) 2.dp else 1.dp,
-                            if (sel) PurpleBtn else Color(0xFF333333), RoundedCornerShape(12.dp))
-                        .clickable { selectedMode = id }
-                        .padding(vertical = 10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(title, color = if (sel) PurpleBtn else TextWhite, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    Text(desc, color = TextGray, fontSize = 9.sp)
-                }
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
+        Text("LQ OPTIMIZER", color = PurpleBtn, fontWeight = FontWeight.Black, fontSize = 32.sp, letterSpacing = 2.sp)
+        Text("Full Skin · Nhẹ Tối Đa · 1 Nút", color = TextGray, fontSize = 13.sp)
+        
+        Spacer(Modifier.height(40.dp))
 
         if (isRunning || progress > 0) {
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg).padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("$progress%", color = PurpleBtn, fontWeight = FontWeight.Black, fontSize = 26.sp)
-                Spacer(Modifier.height(6.dp))
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("$progress%", color = PurpleBtn, fontWeight = FontWeight.Black, fontSize = 30.sp)
+                Spacer(Modifier.height(12.dp))
                 LinearProgressIndicator(
                     progress = { progress / 100f },
-                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                    modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)),
                     color = PurpleBtn, trackColor = Color(0xFF333333)
                 )
-                Spacer(Modifier.height(8.dp))
-                Text(message, color = TextGray, fontSize = 11.sp,
+                Spacer(Modifier.height(12.dp))
+                Text(message, color = TextGray, fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center)
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(40.dp))
         }
 
+        // NÚT BẤM DUY NHẤT
         Box(
-            Modifier.size(160.dp).clip(RoundedCornerShape(80.dp))
+            Modifier.size(200.dp).clip(RoundedCornerShape(100.dp))
                 .background(
                     when {
                         isLocked -> Brush.radialGradient(listOf(Color(0xFF333333), Color(0xFF111111)))
@@ -182,9 +152,10 @@ fun App() {
                         else -> Brush.radialGradient(listOf(Color(0xFF444444), Color(0xFF222222)))
                     }
                 )
+                .border(4.dp, if (hasShizuku && !isLocked) PurpleBtn else Color.Transparent, RoundedCornerShape(100.dp))
                 .clickable {
                     if (hasShizuku && !isRunning && !isLocked) {
-                        runAction("ACTION_OPTIMIZE")
+                        runOptimize()
                     } else if (!hasShizuku) {
                         if (!isShizukuInstalled) {
                             try { context.startActivity(Intent(Intent.ACTION_VIEW,
@@ -204,63 +175,13 @@ fun App() {
                     else -> "CẤP QUYỀN\nSHIZUKU"
                 },
                 color = if (hasShizuku && !isRunning && !isLocked) DarkBg else TextWhite,
-                fontWeight = FontWeight.Black, fontSize = 18.sp,
-                lineHeight = 22.sp, textAlign = TextAlign.Center
+                fontWeight = FontWeight.Black, fontSize = 24.sp,
+                lineHeight = 28.sp, textAlign = TextAlign.Center
             )
         }
 
-        Spacer(Modifier.height(16.dp))
-
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ActionMini(
-                text = "QUÉT FILE",
-                color = Color(0xFF2196F3),
-                modifier = Modifier.weight(1f)
-            ) {
-                if (hasShizuku && !isRunning) runAction("ACTION_SCAN")
-            }
-            ActionMini(
-                text = "XÓA EFFECT",
-                color = Color(0xFFFF9800),
-                modifier = Modifier.weight(1f)
-            ) {
-                if (hasShizuku && !isRunning) runAction("ACTION_CLEAR_EFFECTS")
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        Box(
-            Modifier.fillMaxWidth().height(40.dp).clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF333333))
-                .clickable { if (hasShizuku && !isRunning) runAction("ACTION_RESTORE") },
-            contentAlignment = Alignment.Center
-        ) {
-            Text("KHÔI PHỤC CONFIG GỐC", color = RedColor, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-        }
-
-        Spacer(Modifier.height(16.dp))
-        Text("App chỉ đọc/ghi file trong thư mục LQ.\nKhông động kernel, không đổi cài đặt máy.",
-            color = TextGray, fontSize = 10.sp, lineHeight = 14.sp, textAlign = TextAlign.Center)
-    }
-}
-
-@Composable
-fun ActionMini(
-    text: String,
-    color: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = modifier
-            .height(42.dp)
-            .clip(RoundedCornerShape(21.dp))
-            .background(color.copy(alpha = 0.2f))
-            .border(1.dp, color, RoundedCornerShape(21.dp))
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(text, color = color, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+        Spacer(Modifier.height(40.dp))
+        Text("Tự động dọn rác, tắt bóng, tắt hiệu ứng.\nGiữ nguyên 100% Texture và Skin trong trận.",
+            color = TextGray, fontSize = 11.sp, lineHeight = 16.sp, textAlign = TextAlign.Center)
     }
 }
