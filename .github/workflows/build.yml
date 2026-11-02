@@ -3,7 +3,7 @@ name: Build LQ Master Optimizer APK
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch: # Cho phép sếp bấm chạy thủ công trên GitHub
+  workflow_dispatch:
 
 jobs:
   build:
@@ -19,18 +19,21 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 3. Chấp nhận giấy phép Android SDK
-        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+      # BƯỚC MỚI: Tự động tải Gradle 8.2 thay vì dùng file gradlew
+      - name: 3. Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.2'
 
-      - name: 4. Cấp quyền thực thi cho gradlew
-        run: chmod +x gradlew
+      - name: 4. Chấp nhận giấy phép Android SDK
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
       - name: 5. Tự động tạo Keystore để ký APK
         run: |
           keytool -genkeypair -v -keystore app/release.keystore -alias lqmaster -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=LQ Master, OU=Dev, O=Apex, L=Hanoi, S=Hanoi, C=VN"
 
-      - name: 6. Build APK Release
-        run: ./gradlew assembleRelease
+      - name: 6. Build APK Release (Dùng lệnh gradle thay vì ./gradlew)
+        run: gradle assembleRelease
 
       - name: 7. Upload APK lên GitHub
         uses: actions/upload-artifact@v4
