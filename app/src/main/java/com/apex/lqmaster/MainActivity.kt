@@ -39,13 +39,13 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import rikka.shizuku.Shizuku
 
-val DarkBg    = Color(0xFF000000)
-val CardBg    = Color(0xFF1C1C1E)
-val PurpleBtn = Color(0xFFD0BCFF)
-val TextWhite = Color(0xFFEEEEEE)
-val TextGray  = Color(0xFFAAAAAA)
-val RedColor  = Color(0xFFFF5252)
-val GreenColor= Color(0xFF4CAF50)
+val DarkBg     = Color(0xFF000000)
+val CardBg     = Color(0xFF1C1C1E)
+val PurpleBtn  = Color(0xFFD0BCFF)
+val TextWhite  = Color(0xFFEEEEEE)
+val TextGray   = Color(0xFFAAAAAA)
+val RedColor   = Color(0xFFFF5252)
+val GreenColor = Color(0xFF4CAF50)
 
 class MainActivity : ComponentActivity() {
     private val requestNotifPermission = registerForActivityResult(
@@ -86,7 +86,7 @@ fun App() {
     var selectedMode by remember { mutableStateOf("low") }
 
     val progress by ProgressState.progress.collectAsState()
-    val message  by ProgressState.message.collectAsState()
+    val message by ProgressState.message.collectAsState()
     val isRunning by ProgressState.isRunning.collectAsState()
 
     fun checkStatus() {
@@ -212,10 +212,18 @@ fun App() {
         Spacer(Modifier.height(16.dp))
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ActionMini("QUÉT FILE", Color(0xFF2196F3)) {
+            ActionMini(
+                text = "QUÉT FILE",
+                color = Color(0xFF2196F3),
+                modifier = Modifier.weight(1f)
+            ) {
                 if (hasShizuku && !isRunning) runAction("ACTION_SCAN")
             }
-            ActionMini("XÓA EFFECT", Color(0xFFFF9800)) {
+            ActionMini(
+                text = "XÓA EFFECT",
+                color = Color(0xFFFF9800),
+                modifier = Modifier.weight(1f)
+            ) {
                 if (hasShizuku && !isRunning) runAction("ACTION_CLEAR_EFFECTS")
             }
         }
@@ -238,9 +246,16 @@ fun App() {
 }
 
 @Composable
-fun ActionMini(text: String, color: Color, onClick: () -> Unit) {
+fun ActionMini(
+    text: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
     Box(
-        Modifier.weight(1f).height(42.dp).clip(RoundedCornerShape(21.dp))
+        modifier = modifier
+            .height(42.dp)
+            .clip(RoundedCornerShape(21.dp))
             .background(color.copy(alpha = 0.2f))
             .border(1.dp, color, RoundedCornerShape(21.dp))
             .clickable { onClick() },
