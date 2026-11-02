@@ -39,8 +39,8 @@ class OptimizerService : Service() {
                 sh("find $LQ_DATA/shared_prefs -name '*.xml' -exec cp {} {}.lqopt.bak \\; 2>/dev/null")
                 delay(300)
 
-                // 2. Config (TEXTURE = 1 ĐỂ GIỮ SKIN)
-                emit(25, "Ép cấu hình: Tắt bóng, tắt hiệu ứng, giữ Skin...")
+                // 2. Tối ưu Đồ họa trong trận (Giữ nguyên Skin)
+                emit(25, "Tối ưu đồ họa trong trận (Giữ nguyên Skin)...")
                 sh("""
                     find $LQ_DATA/shared_prefs -name '*.xml' -exec sed -i \
                     -e 's/<int name="ShadowQuality" value="[0-9]*" \/>/<int name="ShadowQuality" value="0" \/>/g' \
@@ -52,32 +52,54 @@ class OptimizerService : Service() {
                     -e 's/<boolean name="EnableHDR" value="true" \/>/<boolean name="EnableHDR" value="false" \/>/g' \
                     {} \;
                 """.trimIndent())
-                delay(400)
+                delay(300)
 
-                // 3. Tắt hiệu ứng phụ
-                emit(40, "Tắt Avatar, Sảnh, Hiệu ứng hạ gục...")
+                // 3. TẮT 3D & HIỆU ỨNG Ở MÀN HÌNH CHỜ / CHỌN TƯỚNG (Cái sếp muốn bôi đen)
+                emit(40, "Tắt mô hình 3D, video, hiệu ứng ở Lobby & Pick tướng...")
                 sh("""
                     find $LQ_DATA/shared_prefs -name '*.xml' -exec sed -i \
                     -e 's/<boolean name="enable_avatar" value="true" \/>/<boolean name="enable_avatar" value="false" \/>/g' \
                     -e 's/<boolean name="show_lobby" value="true" \/>/<boolean name="show_lobby" value="false" \/>/g' \
+                    -e 's/<boolean name="lobby_animation" value="true" \/>/<boolean name="lobby_animation" value="false" \/>/g' \
+                    -e 's/<boolean name="dynamic_background" value="true" \/>/<boolean name="dynamic_background" value="false" \/>/g' \
+                    -e 's/<boolean name="showcase_enabled" value="true" \/>/<boolean name="showcase_enabled" value="false" \/>/g' \
+                    -e 's/<boolean name="hero_showcase" value="true" \/>/<boolean name="hero_showcase" value="false" \/>/g' \
+                    -e 's/<boolean name="enable_hero_animation" value="true" \/>/<boolean name="enable_hero_animation" value="false" \/>/g' \
+                    -e 's/<boolean name="pick_animation" value="true" \/>/<boolean name="pick_animation" value="false" \/>/g' \
+                    -e 's/<boolean name="show_ui_effect" value="true" \/>/<boolean name="show_ui_effect" value="false" \/>/g' \
+                    -e 's/<boolean name="ui_particle" value="true" \/>/<boolean name="ui_particle" value="false" \/>/g' \
                     -e 's/<boolean name="kill_effect" value="true" \/>/<boolean name="kill_effect" value="false" \/>/g' \
                     -e 's/<boolean name="button_effect" value="true" \/>/<boolean name="button_effect" value="false" \/>/g' \
                     {} \;
                 """.trimIndent())
-                delay(400)
+                
+                // Tắt luôn trong file JSON (nếu game có lưu)
+                for (p in listOf("*setting*.json", "*graphic*.json", "*config*.json")) {
+                    sh("""
+                        find $LQ_DATA/files -name '$p' -exec sed -i \
+                        -e 's/"dynamic_background"\s*:\s*true/"dynamic_background":false/g' \
+                        -e 's/"showcase_enabled"\s*:\s*true/"showcase_enabled":false/g' \
+                        -e 's/"pick_animation"\s*:\s*true/"pick_animation":false/g' \
+                        -e 's/"show_ui_effect"\s*:\s*true/"show_ui_effect":false/g' \
+                        {} \;
+                    """.trimIndent())
+                }
+                delay(300)
 
-                // 4. Xóa file không cần thiết (Avatar, Preview, Sảnh)
-                emit(55, "Xóa file ảnh Avatar/Sảnh/Preview tướng...")
+                // 4. XÓA FILE VIDEO / ANIMATION NỀN (Không xóa tên skin)
+                emit(55, "Xóa file video/animation nền màn hình chọn...")
                 val dirsToClear = listOf(
-                    "$LQ_EXT/files/avatar", "$LQ_EXT/files/lobby", "$LQ_EXT/files/preview",
-                    "$LQ_EXT/files/showcase", "$LQ_EXT/files/CDNImage", "$LQ_EXT/cache/avatar",
-                    "$LQ_DATA/cache/avatar", "$LQ_DATA/cache/video"
+                    "$LQ_EXT/files/preview", "$LQ_EXT/files/showcase", 
+                    "$LQ_EXT/files/lobby", "$LQ_EXT/files/hero_video",
+                    "$LQ_EXT/files/CDNImage", "$LQ_DATA/files/preview", 
+                    "$LQ_DATA/files/showcase", "$LQ_DATA/cache/video"
                 )
                 for (d in dirsToClear) sh("rm -rf '$d'/* 2>/dev/null")
                 
-                sh("find $LQ_EXT $LQ_DATA -path '*avatar*' \\( -name '*.png' -o -name '*.webp' \\) -delete 2>/dev/null")
-                sh("find $LQ_EXT $LQ_DATA -path '*preview*' \\( -name '*.mp4' -o -name '*.skel' -o -name '*.atlas' \\) -delete 2>/dev/null")
-                delay(400)
+                // Chỉ xóa các file animation 3D nền (giữ lại file text/json chứa tên skin)
+                sh("find $LQ_EXT $LQ_DATA -path '*preview*' \\( -name '*.mp4' -o -name '*.webm' -o -name '*.skel' -o -name '*.atlas' \\) -delete 2>/dev/null")
+                sh("find $LQ_EXT $LQ_DATA -path '*showcase*' \\( -name '*.mp4' -o -name '*.webm' -o -name '*.skel' -o -name '*.atlas' \\) -delete 2>/dev/null")
+                delay(300)
 
                 // 5. Dọn rác
                 emit(75, "Dọn dẹp cache, log, replay...")
@@ -86,7 +108,7 @@ class OptimizerService : Service() {
                 sh("rm -rf $LQ_EXT/files/replay/* $LQ_DATA/files/replay/* 2>/dev/null")
                 sh("find $LQ_DATA $LQ_EXT -name '*.tmp' -delete 2>/dev/null")
                 sh("find $LQ_DATA $LQ_EXT -name '*.log' -delete 2>/dev/null")
-                delay(400)
+                delay(300)
 
                 // 6. Restart Game
                 emit(90, "Force-stop game để áp dụng cấu hình...")
@@ -94,7 +116,7 @@ class OptimizerService : Service() {
                 delay(800)
 
                 // 7. Hoàn tất
-                emit(100, "Tối ưu xong! Skin vẫn full, máy đã nhẹ.")
+                emit(100, "Tối ưu xong! Màn hình sẽ trống/mờ, tên skin vẫn hiện.")
                 try {
                     val info = packageManager.getPackageInfo(LQ_PKG, 0)
                     Prefs.saveOptimizedVersion(this@OptimizerService, info.versionName)
