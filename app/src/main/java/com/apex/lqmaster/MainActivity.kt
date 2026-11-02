@@ -14,8 +14,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
@@ -23,10 +25,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -37,10 +37,14 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import rikka.shizuku.Shizuku
 
+// Bảng màu chuẩn theo ảnh
 val DarkBg     = Color(0xFF000000)
+val CardBg     = Color(0xFF1C1C1E)
 val PurpleBtn  = Color(0xFFD0BCFF)
 val TextWhite  = Color(0xFFEEEEEE)
 val TextGray   = Color(0xFFAAAAAA)
+val RedColor   = Color(0xFFFF5252)
+val GreenColor = Color(0xFF4CAF50)
 
 class MainActivity : ComponentActivity() {
     private val requestNotifPermission = registerForActivityResult(
@@ -49,6 +53,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Ép màn hình dọc (Portrait)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -65,7 +70,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(background = DarkBg)) {
+            MaterialTheme(colorScheme = darkColorScheme(background = DarkBg, surface = CardBg)) {
                 App()
             }
         }
@@ -78,9 +83,7 @@ fun App() {
     var hasShizuku by remember { mutableStateOf(false) }
     var isShizukuInstalled by remember { mutableStateOf(false) }
     var isLocked by remember { mutableStateOf(false) }
-
-    val progress by ProgressState.progress.collectAsState()
-    val message by ProgressState.message.collectAsState()
+    
     val isRunning by ProgressState.isRunning.collectAsState()
 
     fun checkStatus() {
@@ -106,53 +109,109 @@ fun App() {
     fun runOptimize() {
         ProgressState.start()
         try {
-            val i = Intent(context, OptimizerService::class.java)
+            val i = Intent(context, OptimizerService::class.java).apply {
+                putExtra("MODE", "balanced") // Chạy mặc định chế độ Cân Bằng cho đẹp
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(i)
             else context.startService(i)
         } catch (_: Exception) { ProgressState.reset() }
     }
 
+    // Bọc trong scroll view để tránh tràn màn hình trên máy nhỏ
     Column(
-        Modifier.fillMaxSize().background(DarkBg).padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        Modifier.fillMaxSize().background(DarkBg).verticalScroll(rememberScrollState()).padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("LQ OPTIMIZER", color = PurpleBtn, fontWeight = FontWeight.Black, fontSize = 32.sp, letterSpacing = 2.sp)
-        Text("Full Skin · Nhẹ Tối Đa · 1 Nút", color = TextGray, fontSize = 13.sp)
         
-        Spacer(Modifier.height(40.dp))
-
-        if (isRunning || progress > 0) {
-            Column(
-                Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("$progress%", color = PurpleBtn, fontWeight = FontWeight.Black, fontSize = 30.sp)
-                Spacer(Modifier.height(12.dp))
-                LinearProgressIndicator(
-                    progress = { progress / 100f },
-                    modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)),
-                    color = PurpleBtn, trackColor = Color(0xFF333333)
-                )
-                Spacer(Modifier.height(12.dp))
-                Text(message, color = TextGray, fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace, textAlign = TextAlign.Center)
+        // ================= CARD 1: THÔNG TIN GAME =================
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg).padding(16.dp)
+        ) {
+            Row {
+                // Icon 5v5 giả lập (Sếp có thể thay bằng Image nếu muốn)
+                Box(
+                    Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFD84315)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("5v5", color = Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp)
+                }
+                
+                Spacer(Modifier.width(16.dp))
+                
+                Column {
+                    Text("Liên Quân Mobile", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Text("com.garena.game.kgvn", color = TextGray, fontSize = 12.sp)
+                }
             }
-            Spacer(Modifier.height(40.dp))
+
+            Spacer(Modifier.height(12.dp))
+            
+            val rules = listOf(
+                "• Fix Lag Liên Quân Siêu Mượt Mới Nhất",
+                "• Chơi được đấu thường, rank, đỉnh cao, 1v1, 3v3",
+                "• Không cấu hình cao, avt, sảnh tổ đội",
+                "• Không hiệu ứng hạ, nút bấm",
+                "• Không mod skin được"
+            )
+            rules.forEach { 
+                Text(it, color = TextWhite, fontSize = 13.sp, modifier = Modifier.padding(vertical = 3.dp)) 
+            }
+
+            Spacer(Modifier.height(12.dp))
+            
+            Text(
+                "=> Cần khoảng 20p để tối ưu tùy theo máy.\nSau khi nhấn Optimizer bạn có thể để app dưới nền và thoát ra ngoài làm việc khác.",
+                color = TextWhite, fontSize = 13.sp, lineHeight = 18.sp
+            )
+            
+            Spacer(Modifier.height(12.dp))
+            
+            Text("✖ Mỗi bản update chỉ optimize 1 lần.", color = RedColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
 
-        // NÚT BẤM DUY NHẤT
+        Spacer(Modifier.height(16.dp))
+
+        // ================= CARD 2: SHIZUKU =================
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg)
+                .clickable {
+                    if (!isShizukuInstalled) {
+                        try { context.startActivity(Intent(Intent.ACTION_VIEW,
+                            Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api"))) } catch (_: Exception) {}
+                    } else if (!hasShizuku) {
+                        try { Shizuku.requestPermission(1001) } catch (_: Throwable) {}
+                    }
+                }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Icon Youtube giả lập
+            Box(Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF333333)), contentAlignment = Alignment.Center) {
+                Text("▶", color = RedColor, fontSize = 20.sp)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text("Cách sử dụng shizuku android 11+", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(
+                    if (hasShizuku) "Đã cấp quyền Shizuku" else "Android 11+ phải có quyền Shizuku để can thiệp files",
+                    color = if (hasShizuku) GreenColor else TextGray, fontSize = 12.sp
+                )
+            }
+        }
+
+        Spacer(Modifier.height(32.dp))
+
+        // ================= NÚT OPTIMIZE TO =================
         Box(
-            Modifier.size(200.dp).clip(RoundedCornerShape(100.dp))
+            Modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(30.dp))
                 .background(
                     when {
-                        isLocked -> Brush.radialGradient(listOf(Color(0xFF333333), Color(0xFF111111)))
-                        isRunning -> Brush.radialGradient(listOf(Color(0xFF444444), Color(0xFF222222)))
-                        hasShizuku -> Brush.radialGradient(listOf(PurpleBtn, Color(0xFF8860D0)))
-                        else -> Brush.radialGradient(listOf(Color(0xFF444444), Color(0xFF222222)))
+                        isLocked -> Color(0xFF333333)
+                        isRunning -> Color(0xFF444444)
+                        hasShizuku -> PurpleBtn
+                        else -> Color(0xFF444444)
                     }
                 )
-                .border(4.dp, if (hasShizuku && !isLocked) PurpleBtn else Color.Transparent, RoundedCornerShape(100.dp))
                 .clickable {
                     if (hasShizuku && !isRunning && !isLocked) {
                         runOptimize()
@@ -168,20 +227,27 @@ fun App() {
             contentAlignment = Alignment.Center
         ) {
             Text(
-                when {
+                text = when {
                     isLocked -> "ĐÃ TỐI ƯU"
                     isRunning -> "ĐANG CHẠY..."
-                    hasShizuku -> "OPTIMIZE"
-                    else -> "CẤP QUYỀN\nSHIZUKU"
+                    hasShizuku -> "Optimize"
+                    else -> "CẦN CẤP QUYỀN SHIZUKU"
                 },
-                color = if (hasShizuku && !isRunning && !isLocked) DarkBg else TextWhite,
-                fontWeight = FontWeight.Black, fontSize = 24.sp,
-                lineHeight = 28.sp, textAlign = TextAlign.Center
+                color = if (hasShizuku && !isRunning && !isLocked) DarkBg else TextGray,
+                fontWeight = FontWeight.Bold, fontSize = 20.sp
             )
         }
 
-        Spacer(Modifier.height(40.dp))
-        Text("Tự động dọn rác, tắt bóng, tắt hiệu ứng.\nGiữ nguyên 100% Texture và Skin trong trận.",
-            color = TextGray, fontSize = 11.sp, lineHeight = 16.sp, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(24.dp))
+
+        // ================= CRE: MODLITE =================
+        Text(
+            "cre: modlite",
+            color = TextGray.copy(alpha = 0.6f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium
+        )
+        
+        Spacer(Modifier.height(16.dp))
     }
 }
