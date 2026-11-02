@@ -24,13 +24,9 @@ class OptimizerService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-
-        // Fix crash Foreground Service Android 14
         val notification = buildNotif("Đang phân tích tài nguyên...", 0)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            ServiceCompat.startForeground(
-                this, 1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-            )
+            ServiceCompat.startForeground(this, 1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
             startForeground(1, notification)
         }
@@ -39,11 +35,11 @@ class OptimizerService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         scope.launch {
             try {
-                updateNotif("Đang tắt Avt, sảnh, hiệu ứng...", 10)
+                emit(10, "Đang tắt Avt, sảnh, hiệu ứng...")
                 applyConfigTweaks()
                 delay(3000)
 
-                updateNotif("Đang ép xung CPU/GPU & dọn RAM...", 30)
+                emit(30, "Đang ép xung CPU/GPU & dọn RAM...")
                 sh("settings put global window_animation_scale 0")
                 sh("settings put global transition_animation_scale 0")
                 sh("settings put global animator_duration_scale 0")
@@ -61,7 +57,7 @@ class OptimizerService : Service() {
                 sh("rm -rf /sdcard/Android/data/$LQ_PKG/files/log/*")
                 delay(4000)
 
-                updateNotif("Đang duy trì trạng thái tối ưu...", 50)
+                emit(50, "Đang duy trì trạng thái tối ưu...")
                 sh("am set-standby-bucket $LQ_PKG active")
                 sh("settings put global background_process_limit 2")
 
@@ -69,24 +65,31 @@ class OptimizerService : Service() {
                 for (i in 1..totalMins) {
                     delay(60_000)
                     val progress = 50 + (i * 50 / totalMins)
-                    updateNotif("Đang duy trì tối ưu... (${i}/${totalMins} phút)", progress)
+                    emit(progress, "Đang duy trì tối ưu... ($i/$totalMins phút)")
                     if (i % 2 == 0) sh("am kill-all")
                 }
 
-                updateNotif("Tối ưu hoàn tất! Hãy vào game.", 100)
+                emit(100, "Tối ưu hoàn tất! Hãy vào game.")
                 try {
                     val info = packageManager.getPackageInfo(LQ_PKG, 0)
                     Prefs.saveOptimizedVersion(this@OptimizerService, info.versionName)
                 } catch (_: Exception) {}
 
+                ProgressState.finish()
                 delay(3000)
                 stopSelf()
             } catch (e: Exception) {
                 e.printStackTrace()
+                ProgressState.reset()
                 stopSelf()
             }
         }
         return START_NOT_STICKY
+    }
+
+    private fun emit(progress: Int, msg: String) {
+        ProgressState.update(progress, msg)
+        updateNotif(msg, progress)
     }
 
     private fun applyConfigTweaks() {
@@ -109,18 +112,10 @@ class OptimizerService : Service() {
             if (Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
                 val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
                 val newProcessMethod = shizukuClass.getDeclaredMethod(
-                    "newProcess",
-                    Array<String>::class.java,
-                    Array<String>::class.java,
-                    String::class.java
+                    "newProcess", Array<String>::class.java, Array<String>::class.java, String::class.java
                 )
                 newProcessMethod.isAccessible = true
-                val process = newProcessMethod.invoke(
-                    null,
-                    arrayOf("sh", "-c", cmd),
-                    null,
-                    null
-                ) as ShizukuRemoteProcess
+                val process = newProcessMethod.invoke(null, arrayOf("sh", "-c", cmd), null, null) as ShizukuRemoteProcess
                 process.waitFor()
             }
         } catch (e: InvocationTargetException) {
@@ -132,9 +127,7 @@ class OptimizerService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID, "Optimize Service", NotificationManager.IMPORTANCE_LOW
-            )
+            val channel = NotificationChannel(CHANNEL_ID, "Optimize Service", NotificationManager.IMPORTANCE_LOW)
             val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.createNotificationChannel(channel)
         }
