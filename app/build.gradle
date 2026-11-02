@@ -15,6 +15,24 @@ android {
         versionName "1.0.0"
     }
 
+    // Cấu hình ký APK tự động cho GitHub Actions
+    signingConfigs {
+        release {
+            storeFile file("release.keystore")
+            storePassword "123456"
+            keyAlias "lqmaster"
+            keyPassword "123456"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
     buildFeatures {
         compose true
     }
