@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Quyền chạy ngầm -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <!-- Quyền thông báo cho Android 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Quyền Shizuku -->
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+    <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
     <queries>
         <package android:name="moe.shizuku.privileged.api" />
@@ -17,9 +16,14 @@
 
     <application
         android:label="LQ Master Optimizer"
-        android:icon="@android:drawable/ic_menu_manage"
-        android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen"
-        android:allowBackup="false">
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+        android:allowBackup="false"
+        tools:replace="android:theme">
+
+        <meta-data
+            android:name="moe.shizuku.client.V3_SUPPORT"
+            android:value="true"
+            tools:replace="android:value" />
 
         <activity
             android:name=".MainActivity"
@@ -32,7 +36,6 @@
             </intent-filter>
         </activity>
 
-        <!-- FIX CRASH: Cấu hình Service chuẩn cho Android 14 -->
         <service
             android:name=".OptimizerService"
             android:exported="false"
@@ -48,6 +51,7 @@
             android:multiprocess="false"
             android:enabled="true"
             android:exported="true"
-            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"
+            tools:replace="android:authorities" />
     </application>
 </manifest>
