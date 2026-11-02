@@ -1,4 +1,4 @@
-package com.apex.lqmaster
+package com.apex.lqopti
 
 import android.Manifest
 import android.content.Intent
@@ -10,14 +10,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
@@ -25,8 +25,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -37,14 +42,15 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import rikka.shizuku.Shizuku
 
-// Bảng màu chuẩn theo ảnh
-val DarkBg     = Color(0xFF000000)
-val CardBg     = Color(0xFF1C1C1E)
-val PurpleBtn  = Color(0xFFD0BCFF)
-val TextWhite  = Color(0xFFEEEEEE)
-val TextGray   = Color(0xFFAAAAAA)
-val RedColor   = Color(0xFFFF5252)
-val GreenColor = Color(0xFF4CAF50)
+// Bảng màu Neon Gaming
+val BgDark    = Color(0xFF0B0E14)
+val CardBg    = Color(0xFF161A25)
+val NeonCyan  = Color(0xFF00E5FF)
+val NeonBlue  = Color(0xFF2979FF)
+val TextWhite = Color(0xFFF5F5F5)
+val TextGray  = Color(0xFF8A93A6)
+val RedColor  = Color(0xFFFF5252)
+val GreenColor= Color(0xFF00E676)
 
 class MainActivity : ComponentActivity() {
     private val requestNotifPermission = registerForActivityResult(
@@ -53,7 +59,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Ép màn hình dọc (Portrait)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -70,7 +75,7 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme(background = DarkBg, surface = CardBg)) {
+            MaterialTheme(colorScheme = darkColorScheme(background = BgDark)) {
                 App()
             }
         }
@@ -82,9 +87,32 @@ fun App() {
     val context = LocalContext.current
     var hasShizuku by remember { mutableStateOf(false) }
     var isShizukuInstalled by remember { mutableStateOf(false) }
-    var isLocked by remember { mutableStateOf(false) }
+    var hasLQ by remember { mutableStateOf(false) }
     
     val isRunning by ProgressState.isRunning.collectAsState()
+    val progress by ProgressState.progress.collectAsState()
+    val message by ProgressState.message.collectAsState()
+
+    // Hiệu ứng nhịp đập
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = if (isRunning) 1.02f else 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = if (isRunning) 0.8f else 0.5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glow"
+    )
 
     fun checkStatus() {
         isShizukuInstalled = try {
@@ -97,10 +125,9 @@ fun App() {
             else false
         } catch (_: Throwable) { false }
 
-        try {
-            val info = context.packageManager.getPackageInfo("com.garena.game.kgvn", 0)
-            isLocked = Prefs.isOptimizedForCurrentVersion(context, info.versionName)
-        } catch (_: Exception) {}
+        hasLQ = try {
+            context.packageManager.getPackageInfo("com.garena.game.kgvn", 0) != null
+        } catch (_: Exception) { false }
     }
 
     LaunchedEffect(Unit) { checkStatus() }
@@ -109,145 +136,168 @@ fun App() {
     fun runOptimize() {
         ProgressState.start()
         try {
-            val i = Intent(context, OptimizerService::class.java).apply {
-                putExtra("MODE", "balanced") // Chạy mặc định chế độ Cân Bằng cho đẹp
-            }
+            val i = Intent(context, OptimizerService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(i)
             else context.startService(i)
         } catch (_: Exception) { ProgressState.reset() }
     }
 
-    // Bọc trong scroll view để tránh tràn màn hình trên máy nhỏ
     Column(
-        Modifier.fillMaxSize().background(DarkBg).verticalScroll(rememberScrollState()).padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        Modifier.fillMaxSize().background(BgDark).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
-        
-        // ================= CARD 1: THÔNG TIN GAME =================
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg).padding(16.dp)
-        ) {
-            Row {
-                // Icon 5v5 giả lập (Sếp có thể thay bằng Image nếu muốn)
-                Box(
-                    Modifier.size(64.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFD84315)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("5v5", color = Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp)
-                }
-                
-                Spacer(Modifier.width(16.dp))
-                
-                Column {
-                    Text("Liên Quân Mobile", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                    Text("com.garena.game.kgvn", color = TextGray, fontSize = 12.sp)
-                }
-            }
-
-            Spacer(Modifier.height(12.dp))
-            
-            val rules = listOf(
-                "• Fix Lag Liên Quân Siêu Mượt Mới Nhất",
-                "• Chơi được đấu thường, rank, đỉnh cao, 1v1, 3v3",
-                "• Không cấu hình cao, avt, sảnh tổ đội",
-                "• Không hiệu ứng hạ, nút bấm",
-                "• Không mod skin được"
-            )
-            rules.forEach { 
-                Text(it, color = TextWhite, fontSize = 13.sp, modifier = Modifier.padding(vertical = 3.dp)) 
-            }
-
-            Spacer(Modifier.height(12.dp))
-            
+        // ================= HEADER =================
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 30.dp)) {
             Text(
-                "=> Cần khoảng 20p để tối ưu tùy theo máy.\nSau khi nhấn Optimizer bạn có thể để app dưới nền và thoát ra ngoài làm việc khác.",
-                color = TextWhite, fontSize = 13.sp, lineHeight = 18.sp
+                "LQ OPTIMIZER",
+                color = NeonCyan,
+                fontWeight = FontWeight.Black,
+                fontSize = 32.sp,
+                letterSpacing = 4.sp
             )
-            
-            Spacer(Modifier.height(12.dp))
-            
-            Text("✖ Mỗi bản update chỉ optimize 1 lần.", color = RedColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(
+                "UNITY ENGINE SAFE MODE",
+                color = TextGray,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+                letterSpacing = 2.sp
+            )
         }
 
-        Spacer(Modifier.height(16.dp))
-
-        // ================= CARD 2: SHIZUKU =================
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg)
-                .clickable {
-                    if (!isShizukuInstalled) {
-                        try { context.startActivity(Intent(Intent.ACTION_VIEW,
-                            Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api"))) } catch (_: Exception) {}
-                    } else if (!hasShizuku) {
-                        try { Shizuku.requestPermission(1001) } catch (_: Throwable) {}
-                    }
-                }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Icon Youtube giả lập
-            Box(Modifier.size(44.dp).clip(CircleShape).background(Color(0xFF333333)), contentAlignment = Alignment.Center) {
-                Text("▶", color = RedColor, fontSize = 20.sp)
-            }
-            Spacer(Modifier.width(12.dp))
-            Column {
-                Text("Cách sử dụng shizuku android 11+", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(
-                    if (hasShizuku) "Đã cấp quyền Shizuku" else "Android 11+ phải có quyền Shizuku để can thiệp files",
-                    color = if (hasShizuku) GreenColor else TextGray, fontSize = 12.sp
+        // ================= CENTER (BUTTON) =================
+        Box(contentAlignment = Alignment.Center) {
+            // Vòng hào quang (Glow)
+            Canvas(modifier = Modifier.size(280.dp)) {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(NeonCyan.copy(alpha = glowAlpha), Color.Transparent),
+                        center = center,
+                        radius = size.minDimension / 2
+                    ),
+                    radius = size.minDimension / 2
                 )
             }
-        }
 
-        Spacer(Modifier.height(32.dp))
-
-        // ================= NÚT OPTIMIZE TO =================
-        Box(
-            Modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(30.dp))
-                .background(
-                    when {
-                        isLocked -> Color(0xFF333333)
-                        isRunning -> Color(0xFF444444)
-                        hasShizuku -> PurpleBtn
-                        else -> Color(0xFF444444)
-                    }
-                )
-                .clickable {
-                    if (hasShizuku && !isRunning && !isLocked) {
-                        runOptimize()
-                    } else if (!hasShizuku) {
-                        if (!isShizukuInstalled) {
-                            try { context.startActivity(Intent(Intent.ACTION_VIEW,
-                                Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api"))) } catch (_: Exception) {}
-                        } else {
-                            try { Shizuku.requestPermission(1001) } catch (_: Throwable) {}
+            // Nút bấm chính
+            Box(
+                Modifier
+                    .scale(scale)
+                    .size(200.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.linearGradient(
+                            colors = when {
+                                isRunning -> listOf(Color(0xFF444444), Color(0xFF222222))
+                                hasShizuku && hasLQ -> listOf(NeonCyan, NeonBlue)
+                                else -> listOf(Color(0xFF333333), Color(0xFF111111))
+                            }
+                        )
+                    )
+                    .border(3.dp, if (isRunning) NeonBlue else NeonCyan, CircleShape)
+                    .clickable(enabled = !isRunning) {
+                        if (hasShizuku && hasLQ) {
+                            runOptimize()
+                        } else if (!hasLQ) {
+                            try { 
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.garena.game.kgvn"))) 
+                            } catch (_: Exception) {}
+                        } else if (!hasShizuku) {
+                            if (!isShizukuInstalled) {
+                                try { 
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api"))) 
+                                } catch (_: Exception) {}
+                            } else {
+                                try { Shizuku.requestPermission(1001) } catch (_: Throwable) {}
+                            }
                         }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (isRunning) {
+                        Text(
+                            "$progress%",
+                            color = Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 48.sp
+                        )
+                        Text(
+                            "OPTIMIZING",
+                            color = NeonCyan,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            letterSpacing = 1.sp
+                        )
+                    } else {
+                        Text(
+                            when {
+                                hasShizuku && hasLQ -> "OPTIMIZE"
+                                !hasLQ -> "NO GAME"
+                                else -> "NO PERMISSION"
+                            },
+                            color = if (hasShizuku && hasLQ) Color.White else TextGray,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 24.sp,
+                            letterSpacing = 1.sp
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            when {
+                                hasShizuku && hasLQ -> "TAP TO BOOST"
+                                !hasLQ -> "CÀI LIÊN QUÂN"
+                                else -> "CẤP QUYỀN SHIZUKU"
+                            },
+                            color = if (hasShizuku && hasLQ) Color.White.copy(alpha = 0.7f) else TextGray,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 10.sp
+                        )
                     }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = when {
-                    isLocked -> "ĐÃ TỐI ƯU"
-                    isRunning -> "ĐANG CHẠY..."
-                    hasShizuku -> "Optimize"
-                    else -> "CẦN CẤP QUYỀN SHIZUKU"
-                },
-                color = if (hasShizuku && !isRunning && !isLocked) DarkBg else TextGray,
-                fontWeight = FontWeight.Bold, fontSize = 20.sp
-            )
+                }
+            }
         }
 
-        Spacer(Modifier.height(24.dp))
-
-        // ================= CRE: MODLITE =================
-        Text(
-            "cre: modlite",
-            color = TextGray.copy(alpha = 0.6f),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium
-        )
-        
-        Spacer(Modifier.height(16.dp))
+        // ================= FOOTER (STATUS) =================
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Hộp hiển thị trạng thái
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CardBg)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Trạng thái", color = TextGray, fontSize = 10.sp)
+                    Text(
+                        if (isRunning) message else "Sẵn sàng",
+                        color = if (isRunning) NeonCyan else TextWhite,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.width(220.dp)
+                    )
+                }
+                
+                // Đèn báo hiệu
+                Box(
+                    Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(
+                            when {
+                                isRunning -> NeonCyan
+                                hasShizuku && hasLQ -> GreenColor
+                                else -> RedColor
+                            }
+                        )
+                )
+            }
+        }
     }
 }
