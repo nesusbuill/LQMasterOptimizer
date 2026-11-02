@@ -1,5 +1,6 @@
 package com.apex.lqmaster
 
+import android.Manifest
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
@@ -8,6 +9,7 @@ import android.os.Bundle
 import android.view.WindowInsets
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -27,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import rikka.shizuku.Shizuku
 
 val DarkBg = Color(0xFF000000)
@@ -38,12 +41,36 @@ val RedColor = Color(0xFFFF5252)
 val GreenColor = Color(0xFF4CAF50)
 
 class MainActivity : ComponentActivity() {
+    
+    // Lắng nghe kết quả xin quyền thông báo
+    private val requestNotifPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        
+        // Ẩn thanh trạng thái
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.insetsController?.hide(WindowInsets.Type.systemBars())
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                android.view.View.SYSTEM_UI_FLAG_FULLSCREEN or
+                android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            )
         }
+
+        // BẮT BUỘC: Xin quyền thông báo trên Android 13+ để không bị văng Foreground Service
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
+                != PackageManager.PERMISSION_GRANTED) {
+                requestNotifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
         setContent {
             MaterialTheme(colorScheme = darkColorScheme(background = DarkBg, surface = CardBg)) {
                 App()
@@ -60,9 +87,12 @@ fun App() {
     var isLocked by remember { mutableStateOf(false) }
 
     fun checkStatus() {
+        // Bọc try-catch tuyệt đối để không crash nếu chưa cài Shizuku
         hasShizuku = try {
             Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        } catch (e: Throwable) { false }
+        } catch (e: Throwable) { 
+            false 
+        }
 
         try {
             val info = context.packageManager.getPackageInfo("com.garena.game.kgvn", 0)
@@ -75,11 +105,10 @@ fun App() {
     Column(
         Modifier.fillMaxSize().background(DarkBg).verticalScroll(rememberScrollState()).padding(16.dp)
     ) {
-        // CARD 1: THÔNG TIN GAME
+        // CARD 1: THÔNG TIN
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg).padding(16.dp)
         ) {
-            // Avatar Liên Quân
             Box(
                 Modifier.size(60.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFE65100)),
                 contentAlignment = Alignment.Center
@@ -118,7 +147,7 @@ fun App() {
             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg)
                 .clickable { 
                     if (!hasShizuku) { 
-                        try { Shizuku.requestPermission(1001) } catch (_: Exception) {} 
+                        try { Shizuku.requestPermission(1001) } catch (e: Throwable) {} 
                     } 
                 }
                 .padding(16.dp),
@@ -146,9 +175,13 @@ fun App() {
                 .clickable {
                     if (hasShizuku && !optimizing && !isLocked) {
                         optimizing = true
-                        val intent = Intent(context, OptimizerService::class.java)
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
-                        else context.startService(intent)
+                        try {
+                            val intent = Intent(context, OptimizerService::class.java)
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+                            else context.startService(intent)
+                        } catch (e: Exception) {
+                            optimizing = false
+                        }
                     }
                 },
             contentAlignment = Alignment.Center
