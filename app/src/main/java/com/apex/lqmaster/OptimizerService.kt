@@ -36,26 +36,35 @@ class OptimizerService : Service() {
                 val dataDir = "/data/data/$LQ_PKG"
                 val extDir = "/sdcard/Android/data/$LQ_PKG"
 
-                emit(10, "Đang phân tích dữ liệu LQ...")
+                emit(10, "Đang phân tích cấu trúc Unity...")
                 delay(500)
 
-                // 1. DỌN RÁC CỰC MẠNH (An toàn: Chỉ xóa log, cache, temp. Không xóa file tài nguyên)
-                emit(30, "Đang dọn rác ổ cứng (Log, Cache, Temp)...")
+                // ================= BƯỚC 1: DỌN RÁC CHUẨN UNITY =================
+                // Xóa mọi thứ KHÔNG NẰM TRONG MANIFEST (Log, Replay, Cache tạm)
+                emit(30, "Đang dọn rác (An toàn - Không lỗi tải lại)...")
+                
+                // Xóa Unity Cache (nơi lưu shader, texture tải từ server)
                 sh("rm -rf $extDir/cache/* 2>/dev/null")
                 sh("rm -rf $dataDir/cache/* 2>/dev/null")
+                
+                // Xóa Log, Replay, File Temp
                 sh("rm -rf $extDir/files/log/* 2>/dev/null")
                 sh("rm -rf $extDir/files/replay/* 2>/dev/null")
+                sh("rm -rf $extDir/files/logs/* 2>/dev/null")
                 sh("find $extDir -name '*.tmp' -delete 2>/dev/null")
                 sh("find $extDir -name '*.old' -delete 2>/dev/null")
                 sh("find $extDir -name '*.log' -delete 2>/dev/null")
                 sh("find $extDir -name '*.cache' -delete 2>/dev/null")
                 
-                // Xóa shader cache (nguyên nhân gây khựng khi vào trận lần đầu)
+                // Xóa shader cache (Nguyên nhân gây khựng frame khi vào trận)
                 sh("find $dataDir -path '*cache*shader*' -delete 2>/dev/null")
+                sh("find $dataDir -path '*cache*gpu*' -delete 2>/dev/null")
                 delay(1000)
 
-                // 2. ÉP CẤU HÌNH ĐỒ HỌA (Tắt bóng, tắt hiệu ứng, res 0.35, giữ Texture = 1)
-                emit(60, "Đang ép cấu hình Siêu Mượt (Res 0.35)...")
+                // ================= BƯỚC 2: TẮT ĐỒ HỌA NẶNG QUA CONFIG =================
+                // Unity đọc file XML để quyết định có load Avatar, Sảnh hay không.
+                // Ta set = false để nó BỎ QUA không load, giúp nhẹ RAM/VRAM cực mạnh.
+                emit(60, "Đang tắt Avatar, Sảnh, Bóng đổ...")
                 sh("""
                     find $dataDir/shared_prefs -name '*.xml' -exec sed -i \
                     -e 's/<int name="ShadowQuality" value="[0-9]*" \/>/<int name="ShadowQuality" value="0" \/>/g' \
@@ -74,12 +83,12 @@ class OptimizerService : Service() {
                 """.trimIndent())
                 delay(1000)
 
-                // 3. FORCE STOP ĐỂ GAME NẠP CONFIG MỚI
-                emit(90, "Force-stop Liên Quân để áp dụng...")
+                // ================= BƯỚC 3: KHỞI ĐỘNG LẠI GAME =================
+                emit(90, "Force-stop Liên Quân để nạp cấu hình mới...")
                 sh("am force-stop $LQ_PKG")
                 delay(800)
 
-                emit(100, "Tối ưu xong! Mở LQ trải nghiệm.")
+                emit(100, "Tối ưu hoàn hảo! Mở LQ trải nghiệm.")
                 Prefs.saveOptimized(this@OptimizerService)
                 ProgressState.finish(); delay(2500); stopSelf()
 
