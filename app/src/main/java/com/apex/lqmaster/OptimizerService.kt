@@ -26,7 +26,6 @@ class OptimizerService : Service() {
         super.onCreate()
         createNotificationChannel()
         val notification = buildNotif("Đang khởi tạo...", 0)
-        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             ServiceCompat.startForeground(this, 1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else {
@@ -51,9 +50,9 @@ class OptimizerService : Service() {
                         return@launch
                     }
                     "ACTION_CLEAR_EFFECTS" -> {
-                        emit(20, "Đang dọn file effect/cache của LQ...")
-                        val freed = clearCacheAndEffects()
-                        emit(100, "Đã xóa ${freed}MB file effect/cache")
+                        emit(20, "Đang dọn cache/effect/rác...")
+                        val freed = nukeGarbageFiles()
+                        emit(100, "Đã xóa ${freed}MB file rác")
                         delay(2000)
                         ProgressState.finish()
                         stopSelf()
@@ -70,35 +69,39 @@ class OptimizerService : Service() {
                     }
                 }
 
-                // QUY TRÌNH OPTIMIZE CHÍNH (CHỈ FILE TRONG LQ)
-                emit(15, "Sao lưu config gốc...")
+                // QUY TRÌNH OPTIMIZE CHÍNH
+                emit(10, "Sao lưu config gốc...")
                 backupConfigs()
-                delay(500)
+                delay(400)
 
-                emit(35, "Tắt Avatar, Sảnh, Hiệu ứng hạ trong config...")
+                emit(25, "Tắt Avatar, Sảnh, Hiệu ứng hạ...")
                 disableUselessEffects()
-                delay(500)
+                delay(400)
 
-                emit(55, "Ép đồ họa skin/map xuống mức thấp...")
+                emit(40, "Ép đồ họa trong file cấu hình chính...")
                 forceLowestGraphics(mode)
+                delay(400)
+
+                emit(55, "Quét sâu & tinh chỉnh tất cả file config...")
+                deepScanAndTweakConfigs()
                 delay(500)
 
-                emit(75, "Dọn cache/effect rác...")
-                clearCacheAndEffects()
+                emit(70, "Dọn dẹp file rác (log, cache, replay, ảnh nền)...")
+                val freed = nukeGarbageFiles()
                 delay(500)
 
-                emit(90, "Force-stop game để reload config...")
+                emit(85, "Force-stop game để reload toàn bộ cấu hình...")
                 sh("am force-stop $LQ_PKG")
                 delay(800)
 
-                emit(100, "Xong. Mở LQ lại để áp dụng.")
+                emit(100, "Hoàn tất! Giải phóng ${freed}MB. Mở LQ lại để áp dụng.")
                 try {
                     val info = packageManager.getPackageInfo(LQ_PKG, 0)
                     Prefs.saveOptimizedVersion(this@OptimizerService, info.versionName)
                 } catch (_: Exception) {}
 
                 ProgressState.finish()
-                delay(2000)
+                delay(2500)
                 stopSelf()
 
             } catch (e: Exception) {
@@ -116,13 +119,19 @@ class OptimizerService : Service() {
         val obbDir = "/sdcard/Android/obb/$LQ_PKG"
         val obbSize = out("du -sh $obbDir 2>/dev/null | awk '{print \$1}'").ifEmpty { "?" }
         sb.appendLine("OBB (Skin/Map): $obbSize")
-        
+
         val dataSize = out("du -sh $LQ_EXT 2>/dev/null | awk '{print \$1}'").ifEmpty { "?" }
         sb.appendLine("Data LQ: $dataSize")
 
         val cacheMb = out("du -smc $LQ_EXT/cache $LQ_DATA/cache 2>/dev/null | tail -1 | cut -f1").toLongOrNull() ?: 0
         sb.appendLine("Cache: ${cacheMb}MB")
-        
+
+        val logMb = out("du -smc $LQ_EXT/files/log $LQ_DATA/files/log 2>/dev/null | tail -1 | cut -f1").toLongOrNull() ?: 0
+        sb.appendLine("Log: ${logMb}MB")
+
+        val replayMb = out("du -smc $LQ_EXT/files/replay $LQ_DATA/files/replay 2>/dev/null | tail -1 | cut -f1").toLongOrNull() ?: 0
+        sb.appendLine("Replay: ${replayMb}MB")
+
         val totalMb = parseMb(obbSize) + parseMb(dataSize)
         sb.appendLine(if (totalMb > 3000) "=> Tài nguyên đã FULL" else "=> Tài nguyên chưa đầy đủ")
         return sb.toString()
@@ -138,37 +147,91 @@ class OptimizerService : Service() {
         }
     }
 
-    // ===== 2. XÓA CACHE/EFFECT RÁC (KHÔNG ĐỤNG VÀO FILE GỐC) =====
-    private fun clearCacheAndEffects(): Long {
-        var freed = 0L
-        val before = out("du -smc $LQ_EXT/cache $LQ_DATA/cache 2>/dev/null | tail -1 | cut -f1").toLongOrNull() ?: 0L
+    // ===== 2. QUÉT SÂU & TINH CHỈNH TẤT CẢ CONFIG =====
+    private fun deepScanAndTweakConfigs() {
+        val sharedPrefDir = "$LQ_DATA/shared_prefs"
+        val filesDir = "$LQ_DATA/files"
 
-        // Xóa cache
+        // 2.1. Quét TẤT CẢ file XML trong shared_prefs
+        val tweakSharedPrefsCmd = """
+            find '$sharedPrefDir' -name '*.xml' -exec sed -i \
+            -e 's/<int name="ShadowQuality" value="[0-9]*" \/>/<int name="ShadowQuality" value="0" \/>/g' \
+            -e 's/<int name="EffectQuality" value="[0-9]*" \/>/<int name="EffectQuality" value="0" \/>/g' \
+            -e 's/<int name="TextureQuality" value="[0-9]*" \/>/<int name="TextureQuality" value="0" \/>/g' \
+            -e 's/<int name="GraphicsQuality" value="[0-9]*" \/>/<int name="GraphicsQuality" value="0" \/>/g' \
+            -e 's/<boolean name="HighResolution" value="true" \/>/<boolean name="HighResolution" value="false" \/>/g' \
+            -e 's/<boolean name="EnableHDR" value="true" \/>/<boolean name="EnableHDR" value="false" \/>/g' \
+            -e 's/<boolean name="AntiAliasing" value="true" \/>/<boolean name="AntiAliasing" value="false" \/>/g' \
+            -e 's/<boolean name="enable_avatar" value="true" \/>/<boolean name="enable_avatar" value="false" \/>/g' \
+            -e 's/<boolean name="show_avatar" value="true" \/>/<boolean name="show_avatar" value="false" \/>/g' \
+            -e 's/<boolean name="show_lobby" value="true" \/>/<boolean name="show_lobby" value="false" \/>/g' \
+            -e 's/<boolean name="enable_lobby" value="true" \/>/<boolean name="enable_lobby" value="false" \/>/g' \
+            -e 's/<boolean name="kill_effect" value="true" \/>/<boolean name="kill_effect" value="false" \/>/g' \
+            -e 's/<boolean name="show_kill_effect" value="true" \/>/<boolean name="show_kill_effect" value="false" \/>/g' \
+            -e 's/<boolean name="button_effect" value="true" \/>/<boolean name="button_effect" value="false" \/>/g' {} \;
+        """.trimIndent()
+        sh(tweakSharedPrefsCmd)
+
+        // 2.2. Quét CÓ CHỌN LỌC file JSON trong files/ (chỉ file setting/graphic/option/config)
+        val patterns = listOf("*setting*.json", "*graphic*.json", "*option*.json", "*config*.json")
+        for (p in patterns) {
+            val tweakJsonCmd = """
+                find '$filesDir' -name '$p' -exec sed -i \
+                -e 's/"shadowQuality"\s*:\s*[0-9]/"shadowQuality":0/g' \
+                -e 's/"effectQuality"\s*:\s*[0-9]/"effectQuality":0/g' \
+                -e 's/"textureQuality"\s*:\s*[0-9]/"textureQuality":0/g' \
+                -e 's/"graphicsQuality"\s*:\s*[0-9]/"graphicsQuality":0/g' \
+                -e 's/"resolutionScale"\s*:\s*[0-9.]\+/"resolutionScale":0.5/g' \
+                -e 's/"antiAliasing"\s*:\s*true/"antiAliasing":false/g' \
+                -e 's/"enableHDR"\s*:\s*true/"enableHDR":false/g' \
+                -e 's/"particleQuality"\s*:\s*[0-9]/"particleQuality":0/g' {} \;
+            """.trimIndent()
+            sh(tweakJsonCmd)
+        }
+    }
+
+    // ===== 3. DỌN RÁC TOÀN DIỆN =====
+    private fun nukeGarbageFiles(): Long {
+        var freed = 0L
+        val before = out("du -smc $LQ_EXT/cache $LQ_DATA/cache $LQ_EXT/files/log $LQ_EXT/files/replay $LQ_EXT/files/CDNImage 2>/dev/null | tail -1 | cut -f1").toLongOrNull() ?: 0L
+
+        // Cache
         sh("rm -rf $LQ_EXT/cache/* 2>/dev/null")
         sh("rm -rf $LQ_DATA/cache/* 2>/dev/null")
 
-        // Xóa log, replay, tmp
+        // Log
         sh("rm -rf $LQ_EXT/files/log/* 2>/dev/null")
-        sh("rm -rf $LQ_EXT/files/replay/* 2>/dev/null")
         sh("rm -rf $LQ_DATA/files/log/* 2>/dev/null")
+
+        // Replay
+        sh("rm -rf $LQ_EXT/files/replay/* 2>/dev/null")
         sh("rm -rf $LQ_DATA/files/replay/* 2>/dev/null")
+
+        // Ảnh nền sảnh (CDN cache - game tự tải lại)
+        sh("rm -rf $LQ_EXT/files/CDNImage/* 2>/dev/null")
+        sh("rm -rf $LQ_EXT/files/cdn_image/* 2>/dev/null")
+
+        // Temp files
         sh("find $LQ_EXT $LQ_DATA -name '*.tmp' -delete 2>/dev/null")
         sh("find $LQ_EXT $LQ_DATA -name '*.old' -delete 2>/dev/null")
+        sh("find $LQ_EXT $LQ_DATA -name '*.log' -delete 2>/dev/null")
 
-        // Xóa cache effect (giữ nguyên file gốc)
+        // Effect cache (chỉ file .cache, không đụng file gốc)
         for (d in listOf("$LQ_EXT/files/effect", "$LQ_EXT/files/effects", "$LQ_DATA/files/effect")) {
             sh("find '$d' -name '*.cache' -delete 2>/dev/null")
             sh("find '$d' -name '*.tmp' -delete 2>/dev/null")
         }
+
         // Shader cache
         sh("find $LQ_DATA -path '*cache*shader*' -delete 2>/dev/null")
+        sh("find $LQ_DATA -path '*cache*gpu*' -delete 2>/dev/null")
 
-        val after = out("du -smc $LQ_EXT/cache $LQ_DATA/cache 2>/dev/null | tail -1 | cut -f1").toLongOrNull() ?: 0L
+        val after = out("du -smc $LQ_EXT/cache $LQ_DATA/cache $LQ_EXT/files/log $LQ_EXT/files/replay $LQ_EXT/files/CDNImage 2>/dev/null | tail -1 | cut -f1").toLongOrNull() ?: 0L
         freed += (before - after).coerceAtLeast(0)
         return freed
     }
 
-    // ===== 3. CHỈNH CONFIG GAME (SHARED_PREFS XML) =====
+    // ===== 4. BACKUP / RESTORE / CONFIG =====
     private fun configFile(): String {
         return "$LQ_DATA/shared_prefs/com.garena.game.kgvn_preferences.xml"
     }
@@ -176,11 +239,16 @@ class OptimizerService : Service() {
     private fun backupConfigs() {
         val f = configFile()
         sh("cp '$f' '$f.lqopt.bak' 2>/dev/null")
+        // Backup thêm các file XML khác trong shared_prefs
+        sh("find $LQ_DATA/shared_prefs -name '*.xml' -exec cp {} {}.lqopt.bak \\; 2>/dev/null")
     }
 
     private fun restoreConfigs() {
+        // Restore file chính
         val f = configFile()
         sh("cp '$f.lqopt.bak' '$f' 2>/dev/null")
+        // Restore các file backup khác
+        sh("find $LQ_DATA/shared_prefs -name '*.xml.lqopt.bak' -exec sh -c 'mv \"\$1\" \"\${1%.lqopt.bak}\"' _ {} \\; 2>/dev/null")
         Prefs.saveOptimizedVersion(this, "")
     }
 
@@ -216,6 +284,7 @@ class OptimizerService : Service() {
             -e 's/<int name="TextureQuality" value="[0-9]*" \/>/<int name="TextureQuality" value="$texture" \/>/g' \
             -e 's/<float name="ResolutionScale" value="[0-9.]*" \/>/<float name="ResolutionScale" value="$res" \/>/g' \
             -e 's/<boolean name="AntiAliasing" value="true" \/>/<boolean name="AntiAliasing" value="false" \/>/g' \
+            -e 's/<boolean name="EnableHDR" value="true" \/>/<boolean name="EnableHDR" value="false" \/>/g' \
             '$f' 2>/dev/null
         """.trimIndent()
         sh(cmd)
