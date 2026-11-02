@@ -4,35 +4,45 @@ import android.app.*
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import kotlinx.coroutines.*
 import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuRemoteProcess
+import java.lang.reflect.InvocationTargetException
 
 class OptimizerService : Service() {
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
     private val LQ_PKG = "com.garena.game.kgvn"
     private val LQ_DATA = "/data/data/$LQ_PKG"
+    private val CHANNEL_ID = "lq_master_ch"
 
     override fun onCreate() {
         super.onCreate()
-        // Tạo channel trước khi startForeground để tránh crash
         createNotificationChannel()
-        startForeground(1, buildNotif("Đang phân tích tài nguyên...", 0))
+
+        // Fix crash Foreground Service Android 14
+        val notification = buildNotif("Đang phân tích tài nguyên...", 0)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            ServiceCompat.startForeground(
+                this, 1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+        } else {
+            startForeground(1, notification)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         scope.launch {
             try {
-                // BƯỚC 1: Config
                 updateNotif("Đang tắt Avt, sảnh, hiệu ứng...", 10)
                 applyConfigTweaks()
                 delay(3000)
 
-                // BƯỚC 2: Ép xung & Dọn rác
                 updateNotif("Đang ép xung CPU/GPU & dọn RAM...", 30)
                 sh("settings put global window_animation_scale 0")
                 sh("settings put global transition_animation_scale 0")
@@ -51,7 +61,6 @@ class OptimizerService : Service() {
                 sh("rm -rf /sdcard/Android/data/$LQ_PKG/files/log/*")
                 delay(4000)
 
-                // BƯỚC 3: Duy trì trạng thái 19 phút
                 updateNotif("Đang duy trì trạng thái tối ưu...", 50)
                 sh("am set-standby-bucket $LQ_PKG active")
                 sh("settings put global background_process_limit 2")
@@ -61,13 +70,10 @@ class OptimizerService : Service() {
                     delay(60_000)
                     val progress = 50 + (i * 50 / totalMins)
                     updateNotif("Đang duy trì tối ưu... (${i}/${totalMins} phút)", progress)
-                    if (i % 2 == 0) {
-                        sh("am kill-all")
-                    }
+                    if (i % 2 == 0) sh("am kill-all")
                 }
 
                 updateNotif("Tối ưu hoàn tất! Hãy vào game.", 100)
-                
                 try {
                     val info = packageManager.getPackageInfo(LQ_PKG, 0)
                     Prefs.saveOptimizedVersion(this@OptimizerService, info.versionName)
@@ -101,7 +107,6 @@ class OptimizerService : Service() {
     private fun sh(cmd: String) {
         try {
             if (Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
-                // Dùng Reflection vượt qua giới hạn private của Shizuku 13.x
                 val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
                 val newProcessMethod = shizukuClass.getDeclaredMethod(
                     "newProcess",
@@ -118,6 +123,8 @@ class OptimizerService : Service() {
                 ) as ShizukuRemoteProcess
                 process.waitFor()
             }
+        } catch (e: InvocationTargetException) {
+            e.targetException?.printStackTrace()
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -126,9 +133,7 @@ class OptimizerService : Service() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                "lq_master_ch", 
-                "Optimize Service", 
-                NotificationManager.IMPORTANCE_LOW
+                CHANNEL_ID, "Optimize Service", NotificationManager.IMPORTANCE_LOW
             )
             val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.createNotificationChannel(channel)
@@ -136,7 +141,7 @@ class OptimizerService : Service() {
     }
 
     private fun buildNotif(text: String, progress: Int): Notification {
-        return NotificationCompat.Builder(this, "lq_master_ch")
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("LQ Master Optimizer")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_popup_sync)
