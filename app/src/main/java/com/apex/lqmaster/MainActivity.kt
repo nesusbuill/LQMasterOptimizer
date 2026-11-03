@@ -9,6 +9,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -22,8 +23,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -80,7 +82,6 @@ fun App() {
     val progress by ProgressState.progress.collectAsState()
     val message by ProgressState.message.collectAsState()
 
-    // TỰ ĐỘNG CHECK & XIN QUYỀN KHI MỞ APP
     LaunchedEffect(Unit) {
         hasLQ = try {
             context.packageManager.getPackageInfo("com.garena.game.kgvn", 0) != null
@@ -150,13 +151,13 @@ fun App() {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 
-                // DÙNG BOX THAY VÌ ẢNH ĐỂ TRÁNH LỖI BUILD FILE ẢNH (AAPT)
-                Box(
-                    Modifier.size(60.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFE65100)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("5v5", color = Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp, fontStyle = FontStyle.Italic)
-                }
+                // GỌI ẢNH ic_lq.png TẠI ĐÂY
+                Image(
+                    painter = painterResource(id = R.drawable.ic_lq),
+                    contentDescription = "LQ Icon",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp))
+                )
                 
                 Spacer(Modifier.width(12.dp))
                 
