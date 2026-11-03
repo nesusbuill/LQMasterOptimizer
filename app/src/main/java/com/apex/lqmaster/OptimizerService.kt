@@ -17,7 +17,6 @@ import java.lang.reflect.InvocationTargetException
 class OptimizerService : Service() {
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
-    
     private val LQ_PKG = "com.garena.game.kgvn"
     private val CHANNEL_ID = "lq_opti_ch"
 
@@ -36,68 +35,64 @@ class OptimizerService : Service() {
                 val dataDir = "/data/data/$LQ_PKG"
                 val extDir = "/sdcard/Android/data/$LQ_PKG"
 
-                emit(10, "Đang phân tích cấu trúc Unity Engine...")
+                emit(10, "Phân tích cấu trúc Unity...")
                 delay(500)
 
-                // =========================================================
-                // BƯỚC 1: DỌN DẸP RÁC "VÔ HÌNH" (AN TOÀN TUYỆT ĐỐI)
-                // Hiểu Unity: Không xóa file /files/ (AssetBundle) 
-                // Chỉ xóa Shader Cache, Log, Replay, file tạm (.tmp, .old)
-                // =========================================================
-                emit(30, "Dọn rác ẩn (Shader Cache, Log, Replay)...")
+                // BƯỚC 1: KHÓA UPDATE (Chống tải lại)
+                emit(20, "Khóa file version (Chống bắt tải lại)...")
+                sh("find $extDir -name '*version*' -exec chmod 444 {} \\; 2>/dev/null")
+                sh("find $extDir -name 'localhash' -exec chmod 444 {} \\; 2>/dev/null")
+                sh("find $extDir -name '*.json' -exec sed -i 's/\"version\":.*/\"version\":\"99.99.99\",/g' {} \\; 2>/dev/null")
+
+                // BƯỚC 2: XÓA FILE NẶNG (Ép dung lượng về 1.3GB)
+                emit(40, "Xóa model tướng, quái, hiệu ứng nền...")
+                sh("rm -rf $extDir/files/hero* 2>/dev/null")
+                sh("rm -rf $extDir/files/unit* 2>/dev/null")
+                sh("rm -rf $extDir/files/character* 2>/dev/null")
+                sh("rm -rf $extDir/files/effect* 2>/dev/null")
+                sh("rm -rf $extDir/files/particle* 2>/dev/null")
+                sh("rm -rf $extDir/files/avatar* 2>/dev/null")
+                sh("rm -rf $extDir/files/lobby* 2>/dev/null")
+                sh("rm -rf $extDir/files/preview* 2>/dev/null")
+                sh("rm -rf $extDir/files/showcase* 2>/dev/null")
+                sh("rm -rf $extDir/files/patch* 2>/dev/null")
                 
-                // Xóa cache (không ảnh hưởng Manifest)
                 sh("rm -rf $extDir/cache/* 2>/dev/null")
                 sh("rm -rf $dataDir/cache/* 2>/dev/null")
-                
-                // Xóa log, replay
-                sh("rm -rf $extDir/files/log/* 2>/dev/null")
-                sh("rm -rf $extDir/files/replay/* 2>/dev/null")
-                
-                // Xóa file rác
-                sh("find $extDir -name '*.tmp' -delete 2>/dev/null")
-                sh("find $extDir -name '*.old' -delete 2>/dev/null")
-                sh("find $extDir -name '*.log' -delete 2>/dev/null")
-                
-                // Xóa shader cache (ép Unity nạp shader mới nhẹ hơn)
                 sh("find $dataDir -path '*cache*shader*' -delete 2>/dev/null")
-                sh("find $dataDir -path '*cache*gpu*' -delete 2>/dev/null")
                 delay(1000)
 
-                // =========================================================
-                // BƯỚC 2: CẮT GIẢM HIỆU ỨNG MÀU SẮC QUA XML (GIỮ FULL SKIN)
-                // =========================================================
-                emit(60, "Tắt hiệu ứng nặng, hạ Res 0.35, giữ Skin...")
+                // BƯỚC 3: TẮT HIỆU ỨNG TRANG BỊ & AVATAR
+                emit(70, "Tắt hiệu ứng trang bị, kỹ năng & Avatar...")
                 sh("""
                     find $dataDir/shared_prefs -name '*.xml' -exec sed -i \
-                    -e 's/<int name="ShadowQuality" value="[0-9]*" \/>/<int name="ShadowQuality" value="0" \/>/g' \
+                    -e 's/<int name="ShadowQuality" value="[0-9]*" \/>/<int name="ShadowQuality" value="1" \/>/g' \
                     -e 's/<int name="EffectQuality" value="[0-9]*" \/>/<int name="EffectQuality" value="0" \/>/g' \
                     -e 's/<int name="ParticleQuality" value="[0-9]*" \/>/<int name="ParticleQuality" value="0" \/>/g' \
-                    -e 's/<int name="TextureQuality" value="[0-9]*" \/>/<int name="TextureQuality" value="1" \/>/g' \
-                    -e 's/<int name="GraphicsQuality" value="[0-9]*" \/>/<int name="GraphicsQuality" value="1" \/>/g' \
-                    -e 's/<float name="ResolutionScale" value="[0-9.]*" \/>/<float name="ResolutionScale" value="0.35" \/>/g' \
-                    -e 's/<boolean name="AntiAliasing" value="true" \/>/<boolean name="AntiAliasing" value="false" \/>/g' \
-                    -e 's/<boolean name="EnableHDR" value="true" \/>/<boolean name="EnableHDR" value="false" \/>/g' \
-                    -e 's/<boolean name="EnableBloom" value="true" \/>/<boolean name="EnableBloom" value="false" \/>/g' \
+                    -e 's/<int name="TextureQuality" value="[0-9]*" \/>/<int name="TextureQuality" value="2" \/>/g' \
+                    -e 's/<int name="GraphicsQuality" value="[0-9]*" \/>/<int name="GraphicsQuality" value="2" \/>/g' \
+                    -e 's/<float name="ResolutionScale" value="[0-9.]*" \/>/<float name="ResolutionScale" value="0.75" \/>/g' \
+                    -e 's/<boolean name="AntiAliasing" value="[a-z]*" \/>/<boolean name="AntiAliasing" value="true" \/>/g' \
                     -e 's/<boolean name="enable_avatar" value="true" \/>/<boolean name="enable_avatar" value="false" \/>/g' \
-                    -e 's/<boolean name="show_avatar" value="true" \/>/<boolean name="show_avatar" value="false" \/>/g' \
                     -e 's/<boolean name="show_lobby" value="true" \/>/<boolean name="show_lobby" value="false" \/>/g' \
-                    -e 's/<boolean name="enable_lobby" value="true" \/>/<boolean name="enable_lobby" value="false" \/>/g' \
                     -e 's/<boolean name="kill_effect" value="true" \/>/<boolean name="kill_effect" value="false" \/>/g' \
                     -e 's/<boolean name="button_effect" value="true" \/>/<boolean name="button_effect" value="false" \/>/g' \
+                    -e 's/<boolean name="enable_item_effect" value="true" \/>/<boolean name="enable_item_effect" value="false" \/>/g' \
+                    -e 's/<boolean name="show_equipment_effect" value="true" \/>/<boolean name="show_equipment_effect" value="false" \/>/g' \
+                    -e 's/<boolean name="weapon_glow" value="true" \/>/<boolean name="weapon_glow" value="false" \/>/g' \
+                    -e 's/<boolean name="show_item_vfx" value="true" \/>/<boolean name="show_item_vfx" value="false" \/>/g' \
+                    -e 's/<boolean name="enable_buff_effect" value="true" \/>/<boolean name="enable_buff_effect" value="false" \/>/g' \
                     {} \;
                 """.trimIndent())
                 delay(1000)
 
-                // =========================================================
-                // BƯỚC 3: KHỞI ĐỘNG LẠI GAME (Ép Unity nạp cấu hình mới)
-                // =========================================================
+                // BƯỚC 4: KHỞI ĐỘNG LẠI
                 emit(90, "Force-stop Liên Quân...")
                 sh("am force-stop $LQ_PKG")
                 delay(800)
 
-                emit(100, "Hoàn tất! Không tải lại, full Skin.")
-                ProgressState.finish(); delay(2000); stopSelf()
+                emit(100, "Hoàn tất! Nhẹ 1.3GB, không bắt tải lại.")
+                ProgressState.finish(); delay(2500); stopSelf()
 
             } catch (e: Exception) {
                 e.printStackTrace(); ProgressState.reset(); stopSelf()
