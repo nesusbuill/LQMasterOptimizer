@@ -37,40 +37,48 @@ class OptimizerService : Service() {
                 val extDir = "/sdcard/Android/data/$LQ_PKG"
 
                 emit(10, "Đang phân tích cấu trúc Unity Engine...")
-                delay(800)
+                delay(500)
 
                 // =========================================================
-                // BƯỚC 1: DỌN RÁC UNITY (HOÀN TOÀN AN TOÀN)
-                // Bỏ qua thư mục /files/ để không chạm vào Manifest và AssetBundle
+                // BƯỚC 1: DỌN DẸP RÁC "VÔ HÌNH" (AN TOÀN TUYỆT ĐỐI)
+                // Hiểu Unity: Không xóa file /files/ (AssetBundle) 
+                // Chỉ xóa Shader Cache, Log, Replay, file tạm (.tmp, .old)
                 // =========================================================
-                emit(30, "Dọn dẹp bộ nhớ đệm (Cache, Shader, Log)...")
+                emit(30, "Dọn rác ẩn (Shader Cache, Log, Replay)...")
                 
+                // Xóa cache (không ảnh hưởng Manifest)
                 sh("rm -rf $extDir/cache/* 2>/dev/null")
                 sh("rm -rf $dataDir/cache/* 2>/dev/null")
+                
+                // Xóa log, replay
                 sh("rm -rf $extDir/files/log/* 2>/dev/null")
                 sh("rm -rf $extDir/files/replay/* 2>/dev/null")
-                sh("rm -rf $extDir/files/logs/* 2>/dev/null")
+                
+                // Xóa file rác
                 sh("find $extDir -name '*.tmp' -delete 2>/dev/null")
                 sh("find $extDir -name '*.old' -delete 2>/dev/null")
                 sh("find $extDir -name '*.log' -delete 2>/dev/null")
                 
-                // Xóa Shader Cache (Nguyên nhân chính gây khựng frame khi vào trận)
+                // Xóa shader cache (ép Unity nạp shader mới nhẹ hơn)
                 sh("find $dataDir -path '*cache*shader*' -delete 2>/dev/null")
                 sh("find $dataDir -path '*cache*gpu*' -delete 2>/dev/null")
                 delay(1000)
 
                 // =========================================================
-                // BƯỚC 2: ÉP CẤU HÌNH ĐỒ HỌA QUA XML (GIỮ FULL SKIN)
+                // BƯỚC 2: CẮT GIẢM HIỆU ỨNG MÀU SẮC QUA XML (GIỮ FULL SKIN)
                 // =========================================================
-                emit(60, "Tinh chỉnh cấu hình (Tắt hiệu ứng, Res 0.35)...")
+                emit(60, "Tắt hiệu ứng nặng, hạ Res 0.35, giữ Skin...")
                 sh("""
                     find $dataDir/shared_prefs -name '*.xml' -exec sed -i \
                     -e 's/<int name="ShadowQuality" value="[0-9]*" \/>/<int name="ShadowQuality" value="0" \/>/g' \
                     -e 's/<int name="EffectQuality" value="[0-9]*" \/>/<int name="EffectQuality" value="0" \/>/g' \
+                    -e 's/<int name="ParticleQuality" value="[0-9]*" \/>/<int name="ParticleQuality" value="0" \/>/g' \
                     -e 's/<int name="TextureQuality" value="[0-9]*" \/>/<int name="TextureQuality" value="1" \/>/g' \
                     -e 's/<int name="GraphicsQuality" value="[0-9]*" \/>/<int name="GraphicsQuality" value="1" \/>/g' \
                     -e 's/<float name="ResolutionScale" value="[0-9.]*" \/>/<float name="ResolutionScale" value="0.35" \/>/g' \
-                    -e 's/<boolean name="AntiAliasing" value="[a-z]*" \/>/<boolean name="AntiAliasing" value="false" \/>/g' \
+                    -e 's/<boolean name="AntiAliasing" value="true" \/>/<boolean name="AntiAliasing" value="false" \/>/g' \
+                    -e 's/<boolean name="EnableHDR" value="true" \/>/<boolean name="EnableHDR" value="false" \/>/g' \
+                    -e 's/<boolean name="EnableBloom" value="true" \/>/<boolean name="EnableBloom" value="false" \/>/g' \
                     -e 's/<boolean name="enable_avatar" value="true" \/>/<boolean name="enable_avatar" value="false" \/>/g' \
                     -e 's/<boolean name="show_avatar" value="true" \/>/<boolean name="show_avatar" value="false" \/>/g' \
                     -e 's/<boolean name="show_lobby" value="true" \/>/<boolean name="show_lobby" value="false" \/>/g' \
@@ -79,17 +87,17 @@ class OptimizerService : Service() {
                     -e 's/<boolean name="button_effect" value="true" \/>/<boolean name="button_effect" value="false" \/>/g' \
                     {} \;
                 """.trimIndent())
-                delay(1200)
-
-                // =========================================================
-                // BƯỚC 3: KHỞI ĐỘNG LẠI GAME
-                // =========================================================
-                emit(90, "Khởi động lại Liên Quân...")
-                sh("am force-stop $LQ_PKG")
                 delay(1000)
 
-                emit(100, "Tối ưu thành công! Mở game để trải nghiệm.")
-                ProgressState.finish(); delay(2500); stopSelf()
+                // =========================================================
+                // BƯỚC 3: KHỞI ĐỘNG LẠI GAME (Ép Unity nạp cấu hình mới)
+                // =========================================================
+                emit(90, "Force-stop Liên Quân...")
+                sh("am force-stop $LQ_PKG")
+                delay(800)
+
+                emit(100, "Hoàn tất! Không tải lại, full Skin.")
+                ProgressState.finish(); delay(2000); stopSelf()
 
             } catch (e: Exception) {
                 e.printStackTrace(); ProgressState.reset(); stopSelf()
