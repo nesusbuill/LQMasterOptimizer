@@ -1,4 +1,4 @@
-name: Build LQ Master Optimizer APK
+name: Build LQMasterOptimizer APK
 
 on:
   push:
@@ -19,8 +19,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # BƯỚC MỚI: Tự động tải Gradle 8.2 thay vì dùng file gradlew
-      - name: 3. Setup Gradle
+      - name: 3. Setup Gradle 8.2
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.2'
@@ -28,15 +27,16 @@ jobs:
       - name: 4. Chấp nhận giấy phép Android SDK
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
-      - name: 5. Tự động tạo Keystore để ký APK
+      - name: 5. Tự động tạo Keystore
         run: |
           keytool -genkeypair -v -keystore app/release.keystore -alias lqmaster -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=LQ Master, OU=Dev, O=Apex, L=Hanoi, S=Hanoi, C=VN"
 
-      - name: 6. Build APK Release (Dùng lệnh gradle thay vì ./gradlew)
+      - name: 6. Build APK Release
         run: gradle assembleRelease
 
-      - name: 7. Upload APK lên GitHub
+      - name: 7. Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: LQ-Master-Optimizer-APK
-          path: app/build/outputs/apk/release/app-release.apk
+          name: LQMasterOptimizer-APK
+          # ĐƯỜNG DẪN NÀY PHẢI KHỚP VỚI TÊN FILE TRONG app/build.gradle
+          path: app/build/outputs/apk/release/LQMasterOptimizer_v1.0.0.apk
