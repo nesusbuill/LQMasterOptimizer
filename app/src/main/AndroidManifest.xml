@@ -15,7 +15,8 @@
     </queries>
 
     <application
-        android:label="LQ Master Optimizer"
+        android:label="LQMasterOptimizer"
+        android:icon="@drawable/avatar"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
         android:allowBackup="false"
         tools:replace="android:theme">
@@ -25,7 +26,6 @@
             android:value="true"
             tools:replace="android:value" />
 
-        <!-- Ép màn hình DỌC (portrait) -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
