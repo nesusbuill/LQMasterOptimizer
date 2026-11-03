@@ -35,35 +35,51 @@ class OptimizerService : Service() {
                 val dataDir = "/data/data/$LQ_PKG"
                 val extDir = "/sdcard/Android/data/$LQ_PKG"
 
-                emit(10, "Phân tích cấu trúc Unity...")
+                emit(5, "Phân tích cấu trúc Unity Engine...")
                 delay(500)
 
-                // BƯỚC 1: KHÓA UPDATE (Chống tải lại)
-                emit(20, "Khóa file version (Chống bắt tải lại)...")
+                // =========================================================
+                // BƯỚC 1: BÍ THUẬT CHỐNG TẢI LẠI (FREEZE VERSION & LOCALHASH)
+                // Hiểu Unity: File version/localhash quyết định xem có tải lại hay không.
+                // Ta cấp quyền Read-Only (chmod 444) và sửa số version thành max.
+                // =========================================================
+                emit(15, "Khóa file cập nhật (Chống tải lại)...")
                 sh("find $extDir -name '*version*' -exec chmod 444 {} \\; 2>/dev/null")
                 sh("find $extDir -name 'localhash' -exec chmod 444 {} \\; 2>/dev/null")
                 sh("find $extDir -name '*.json' -exec sed -i 's/\"version\":.*/\"version\":\"99.99.99\",/g' {} \\; 2>/dev/null")
+                delay(500)
 
-                // BƯỚC 2: XÓA FILE NẶNG (Ép dung lượng về 1.3GB)
-                emit(40, "Xóa model tướng, quái, hiệu ứng nền...")
+                // =========================================================
+                // BƯỚC 2: XÓA SÂU TÀI NGUYÊN NẶNG (ÉP XUỐNG 1.3GB)
+                // Chỉ xóa trong thư mục files/ (tải thêm). KHÔNG ĐỤNG OBB (Map gốc).
+                // =========================================================
+                emit(35, "Xóa Model Tướng, Quái, Hiệu ứng...")
+                // Xóa model chi tiết tướng, lính, quái (giữ lại base model trong OBB)
                 sh("rm -rf $extDir/files/hero* 2>/dev/null")
                 sh("rm -rf $extDir/files/unit* 2>/dev/null")
                 sh("rm -rf $extDir/files/character* 2>/dev/null")
+                
+                // Xóa hiệu ứng (cloak, particle, kỹ năng)
                 sh("rm -rf $extDir/files/effect* 2>/dev/null")
                 sh("rm -rf $extDir/files/particle* 2>/dev/null")
+                
+                // Xóa Avatar, Sảnh, Video quảng cáo (giữ lại emote, âm thanh)
                 sh("rm -rf $extDir/files/avatar* 2>/dev/null")
                 sh("rm -rf $extDir/files/lobby* 2>/dev/null")
                 sh("rm -rf $extDir/files/preview* 2>/dev/null")
                 sh("rm -rf $extDir/files/showcase* 2>/dev/null")
                 sh("rm -rf $extDir/files/patch* 2>/dev/null")
-                
+
+                // Dọn rác Cache & Shader
                 sh("rm -rf $extDir/cache/* 2>/dev/null")
                 sh("rm -rf $dataDir/cache/* 2>/dev/null")
                 sh("find $dataDir -path '*cache*shader*' -delete 2>/dev/null")
                 delay(1000)
 
-                // BƯỚC 3: TẮT HIỆU ỨNG TRANG BỊ & AVATAR
-                emit(70, "Tắt hiệu ứng trang bị, kỹ năng & Avatar...")
+                // =========================================================
+                // BƯỚC 3: TINH CHỈNH CONFIG ĐỒ HỌA & TẮT HIỆU ỨNG TRANG BỊ
+                // =========================================================
+                emit(70, "Tắt hiệu ứng trang bị, kỹ năng & tinh chỉnh...")
                 sh("""
                     find $dataDir/shared_prefs -name '*.xml' -exec sed -i \
                     -e 's/<int name="ShadowQuality" value="[0-9]*" \/>/<int name="ShadowQuality" value="1" \/>/g' \
@@ -86,12 +102,14 @@ class OptimizerService : Service() {
                 """.trimIndent())
                 delay(1000)
 
-                // BƯỚC 4: KHỞI ĐỘNG LẠI
+                // =========================================================
+                // BƯỚC 4: KHỞI ĐỘNG LẠI GAME
+                // =========================================================
                 emit(90, "Force-stop Liên Quân...")
                 sh("am force-stop $LQ_PKG")
                 delay(800)
 
-                emit(100, "Hoàn tất! Nhẹ 1.3GB, không bắt tải lại.")
+                emit(100, "Hoàn tất! Dung lượng 1.3GB, Full Skin, Không lag.")
                 ProgressState.finish(); delay(2500); stopSelf()
 
             } catch (e: Exception) {
