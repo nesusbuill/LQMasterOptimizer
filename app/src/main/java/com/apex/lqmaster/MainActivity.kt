@@ -9,7 +9,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -23,9 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -76,15 +74,37 @@ class MainActivity : ComponentActivity() {
 fun App() {
     val context = LocalContext.current
     var hasShizuku by remember { mutableStateOf(false) }
-    var isShizukuInstalled by remember { mutableStateOf(false) }
     var hasLQ by remember { mutableStateOf(false) }
     
     val isRunning by ProgressState.isRunning.collectAsState()
     val progress by ProgressState.progress.collectAsState()
     val message by ProgressState.message.collectAsState()
 
+    // TỰ ĐỘNG CHECK & XIN QUYỀN KHI MỞ APP
+    LaunchedEffect(Unit) {
+        hasLQ = try {
+            context.packageManager.getPackageInfo("com.garena.game.kgvn", 0) != null
+        } catch (_: Exception) { false }
+
+        val isShizukuInstalled = try {
+            context.packageManager.getPackageInfo("moe.shizuku.privileged.api", 0) != null
+        } catch (_: Exception) { false }
+
+        hasShizuku = try {
+            if (isShizukuInstalled)
+                Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            else false
+        } catch (_: Throwable) { false }
+
+        if (isShizukuInstalled && !hasShizuku) {
+            try { Shizuku.requestPermission(1001) } catch (_: Throwable) {}
+        } else if (!isShizukuInstalled) {
+            try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api"))) } catch (_: Exception) {}
+        }
+    }
+
     fun checkStatus() {
-        isShizukuInstalled = try {
+        val isShizukuInstalled = try {
             context.packageManager.getPackageInfo("moe.shizuku.privileged.api", 0) != null
         } catch (_: Exception) { false }
 
@@ -99,20 +119,14 @@ fun App() {
         } catch (_: Exception) { false }
     }
 
-    LaunchedEffect(Unit) { checkStatus() }
-    LaunchedEffect(isRunning) { if (!isRunning) checkStatus() }
-
     fun runOptimize() {
+        checkStatus()
         if (!hasLQ) {
             try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.garena.game.kgvn"))) } catch (_: Exception) {}
             return
         }
         if (!hasShizuku) {
-            if (!isShizukuInstalled) {
-                try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api"))) } catch (_: Exception) {}
-            } else {
-                try { Shizuku.requestPermission(1001) } catch (_: Throwable) {}
-            }
+            try { Shizuku.requestPermission(1001) } catch (_: Throwable) {}
             return
         }
 
@@ -136,13 +150,13 @@ fun App() {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 
-                // CHÈN ẢNH THẬT TẠI ĐÂY
-                Image(
-                    painter = painterResource(id = R.drawable.ic_lq), // Tên file ảnh sếp đã copy vào drawable
-                    contentDescription = "LQ Icon",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp))
-                )
+                // DÙNG BOX THAY VÌ ẢNH ĐỂ TRÁNH LỖI BUILD FILE ẢNH (AAPT)
+                Box(
+                    Modifier.size(60.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFE65100)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("5v5", color = Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp, fontStyle = FontStyle.Italic)
+                }
                 
                 Spacer(Modifier.width(12.dp))
                 
