@@ -2,7 +2,6 @@ package com.apex.lqmaster
 
 import android.Manifest
 import android.content.Intent
-import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -10,10 +9,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
@@ -21,8 +21,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -33,13 +36,12 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import rikka.shizuku.Shizuku
 
-// Màu sắc cơ bản
-val BgDark    = Color(0xFF121212)
-val BtnReady  = Color(0xFF2196F3) // Xanh dương
-val BtnRun    = Color(0xFFF44336) // Đỏ
-val BtnDisable= Color(0xFF333333) // Xám
+val BgDark    = Color(0xFF141414)
+val CardBg    = Color(0xFF1C1C1E)
+val PurpleBtn = Color(0xFFD0BCFF)
 val TextWhite = Color(0xFFEEEEEE)
 val TextGray  = Color(0xFF888888)
+val RedColor  = Color(0xFFFF5252)
 
 class MainActivity : ComponentActivity() {
     private val requestNotifPermission = registerForActivityResult(
@@ -48,8 +50,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-
+        
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).let {
             it.hide(WindowInsetsCompat.Type.systemBars())
@@ -102,6 +103,19 @@ fun App() {
     LaunchedEffect(isRunning) { if (!isRunning) checkStatus() }
 
     fun runOptimize() {
+        if (!hasLQ) {
+            try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.garena.game.kgvn"))) } catch (_: Exception) {}
+            return
+        }
+        if (!hasShizuku) {
+            if (!isShizukuInstalled) {
+                try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api"))) } catch (_: Exception) {}
+            } else {
+                try { Shizuku.requestPermission(1001) } catch (_: Throwable) {}
+            }
+            return
+        }
+
         ProgressState.start()
         try {
             val i = Intent(context, OptimizerService::class.java)
@@ -111,76 +125,96 @@ fun App() {
     }
 
     Column(
-        Modifier.fillMaxSize().background(BgDark).padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        Modifier.fillMaxSize().background(BgDark).padding(16.dp)
     ) {
-        // Tiêu đề
-        Text(
-            "LQ OPTIMIZER",
-            color = TextWhite,
-            fontWeight = FontWeight.Bold,
-            fontSize = 32.sp
-        )
-        
-        Spacer(Modifier.height(60.dp))
-
-        // Nút bấm duy nhất
-        val buttonColor = when {
-            isRunning -> BtnRun
-            hasShizuku && hasLQ -> BtnReady
-            else -> BtnDisable
-        }
-        
-        val buttonText = when {
-            isRunning -> "$progress%"
-            hasShizuku && hasLQ -> "OPTIMIZE"
-            !hasLQ -> "CHƯA CÀI GAME"
-            else -> "CẤP QUYỀN"
+        Row(Modifier.fillMaxWidth().padding(bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("<", color = TextWhite, fontSize = 24.sp, fontWeight = FontWeight.Light)
         }
 
-        Box(
-            Modifier
-                .size(200.dp)
-                .clip(CircleShape)
-                .background(buttonColor)
-                .clickable(enabled = !isRunning) {
-                    if (hasShizuku && hasLQ) {
-                        runOptimize()
-                    } else if (!hasLQ) {
-                        try { 
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.garena.game.kgvn"))) 
-                        } catch (_: Exception) {}
-                    } else if (!hasShizuku) {
-                        if (!isShizukuInstalled) {
-                            try { 
-                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api"))) 
-                            } catch (_: Exception) {}
-                        } else {
-                            try { Shizuku.requestPermission(1001) } catch (_: Throwable) {}
-                        }
-                    }
-                },
-            contentAlignment = Alignment.Center
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(CardBg).padding(16.dp)
         ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                
+                // CHÈN ẢNH THẬT TẠI ĐÂY
+                Image(
+                    painter = painterResource(id = R.drawable.ic_lq), // Tên file ảnh sếp đã copy vào drawable
+                    contentDescription = "LQ Icon",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp))
+                )
+                
+                Spacer(Modifier.width(12.dp))
+                
+                Column {
+                    Text("Liên Quân Mobile", color = TextWhite, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Text("com.garena.game.kgvn", color = TextGray, fontSize = 13.sp)
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            val lines = listOf(
+                "• Fix Lag Siêu Mượt (Còn 1,3GB)",
+                "• Chơi được đấu thường, rank, đỉnh cao, 3v3",
+                "• Nền sảnh, tổ đội",
+                "• Sử dụng map gốc",
+                "• Có cấu hình cao",
+                "• Không avt",
+                "• Có emote",
+                "• Có skin (Ko mod)",
+                "• Có âm thanh chiêu thức",
+                "• Xoá chi tiết tướng và quái",
+                "• Không các hiệu ứng đổ(ảo choàng băng...)"
+            )
+            
+            lines.forEach { line ->
+                Text(text = line, color = TextWhite, fontSize = 14.sp, lineHeight = 22.sp, modifier = Modifier.padding(vertical = 2.dp))
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Text("✖ Mỗi bản update chỉ optimize 1 lần.", color = RedColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        if (isRunning) {
             Text(
-                text = buttonText,
-                color = if (hasShizuku && hasLQ) Color.White else TextGray,
-                fontWeight = FontWeight.Bold,
-                fontSize = if (isRunning) 48.sp else 22.sp,
+                text = "$message ($progress%)",
+                color = PurpleBtn,
+                fontSize = 14.sp,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 textAlign = TextAlign.Center
             )
         }
 
-        Spacer(Modifier.height(40.dp))
-
-        // Trạng thái
-        Text(
-            text = if (isRunning) message else "Hệ thống sẵn sàng",
-            color = TextGray,
-            fontSize = 14.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.height(40.dp)
-        )
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(60.dp)
+                .clip(RoundedCornerShape(30.dp))
+                .background(
+                    Brush.horizontalGradient(
+                        colors = if (isRunning) listOf(Color(0xFF888888), Color(0xFF555555)) else listOf(PurpleBtn, PurpleBtn)
+                    )
+                )
+                .clickable(enabled = !isRunning) { runOptimize() },
+            contentAlignment = Alignment.Center
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (isRunning) "$progress%" else "Optimize",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp
+                )
+                if (!isRunning) {
+                    Spacer(Modifier.width(8.dp))
+                    Text("▶", color = Color.White.copy(alpha = 0.7f), fontSize = 16.sp)
+                }
+            }
+        }
+        Spacer(Modifier.height(24.dp))
     }
 }
